@@ -9,18 +9,25 @@ use sdl2::pixels::Color;
 use sdl2::video::{WindowContext,Window};
 use sdl2::surface::{Surface,SurfaceContext};
 use sdl2::render::{TextureCreator,Texture,Canvas};
+use std::str;
+use std::io;
+use std::write;
+use std::io::Write;
+use std::fs::{read_to_string};
 
 pub mod player;
 pub mod plat;
+pub mod read_level;
 use player::{Displacement};
 use plat::{Platform,Edge,EdgeFunc};
+use read_level::{levelp,exprp};
 //pub mod entity;
 
 fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) -> String {
   canvas.copy(&texture,None,r); return "".to_string();
 }
 
-fn main() {
+/*fn main() {
   let sdl = sdl2::init().unwrap();
   let video_subsystem = sdl.video().unwrap();
   let window = video_subsystem.window("rewriting",800,800)
@@ -121,4 +128,18 @@ fn main() {
     canvas.fill_rect(Rect::new((0.0*800.0) as i32,(-(-0.5)*800.0) as i32
                       ,(0.5*800.0) as u32,(0.5*800.0) as u32));
     canvas.present(); }
+}*/
+
+fn main() {
+  loop {
+    let prec = vec![("@".to_string(),0),(",".to_string(),100)].into_iter().collect();
+    let mut input = String::new();
+    print!("> "); io::stdout().flush();
+    match io::stdin().read_line(&mut input) {
+      Ok(s) => {
+        let (_,st) = exprp(&input,&prec).unwrap();
+        println!("{:?}",st); },
+      Err(e) => { println!("ERROR: {:?}",e); }
+    }
+  }
 }

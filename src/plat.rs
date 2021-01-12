@@ -71,6 +71,7 @@ pub fn obj_coll(obj: &Platform, oid: usize, pl: &mut Player, d: &mut Displacemen
     let vp1 = np-obj.tl-p1;
 
     // might need to make a floating-point error aware sgn function.
+    // TODO: maybe use one-sided awareness.
     let q0 = sgn_fpe_aware(cross2d(vp0,ve),SGN_ERR);
     let q1 = sgn_fpe_aware(cross2d(vp1,ve),SGN_ERR);
     println!("{:?} {:?}",q0,q1);
