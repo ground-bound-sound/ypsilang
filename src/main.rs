@@ -132,7 +132,8 @@ fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) 
 
 fn main() {
   loop {
-    let prec = vec![("@".to_string(),0),(",".to_string(),100)].into_iter().collect();
+    let prec = vec![(":".to_string(),0),("->".to_string(),100)
+                   ,("@".to_string(),200),(",".to_string(),300)].into_iter().collect();
     let mut input = String::new();
     print!("> "); io::stdout().flush();
     match io::stdin().read_line(&mut input) {

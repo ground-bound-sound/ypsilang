@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 sdl2 = { version = "0.31.0", features = [ ] }
+nom = "6.0.1"
 nalgebra = "0.18.0"
