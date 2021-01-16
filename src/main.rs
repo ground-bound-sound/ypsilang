@@ -14,13 +14,16 @@ use std::io;
 use std::write;
 use std::io::Write;
 use std::fs::{read_to_string};
+use std::collections::HashMap;
 
 pub mod player;
 pub mod plat;
 pub mod read_level;
+pub mod eval_level;
 use player::{Displacement};
 use plat::{Platform,Edge,EdgeFunc};
 use read_level::{levelp,exprp};
+use eval_level::{EArena,ENode,aeval,expr_to_arena,new_earena};
 //pub mod entity;
 
 fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) -> String {
@@ -132,14 +135,19 @@ fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) 
 
 fn main() {
   loop {
-    let prec = vec![(":".to_string(),0),("->".to_string(),100)
+    let prec = vec![(":".to_string(),0),("META:fun".to_string(),100)
                    ,("@".to_string(),200),(",".to_string(),300)].into_iter().collect();
     let mut input = String::new();
+    let mut bvs: HashMap<String,Vec<(EArena,usize)>> = vec![].into_iter().collect();
     print!("> "); io::stdout().flush();
     match io::stdin().read_line(&mut input) {
       Ok(s) => {
         let (_,st) = exprp(&input,&prec).unwrap();
-        println!("{:?}",st); },
+        println!("{:?}",st);
+        let mut ar = new_earena();
+        let ins = expr_to_arena(&st,&mut ar);
+        //aeval(ins,&mut ar,&mut bvs);
+        println!("{:?} {:?}",ar,ins); },
       Err(e) => { println!("ERROR: {:?}",e); }
     }
   }

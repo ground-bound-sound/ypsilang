@@ -12,6 +12,8 @@ use std::io::Write;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 
+use crate::eval_level::{EArena};
+
 #[derive(Debug,Clone)]
 pub struct ExprList {
   stmts: Vec<Expr>
@@ -25,7 +27,8 @@ pub enum Stmt {
 #[derive(Debug,Clone,PartialEq)]
 pub enum Expr {
   Var(String), C(Const), App(Box<Expr>,Box<Vec<Expr>>), Lst(Box<Vec<Expr>>), E(String)
-, LParen, RParen, LP(i32), RP(i32), MetaMkOpr
+, LParen, RParen, LP(i32), RP(i32), MetaMkOpr, Builtin(String)
+, NoOp
 }
 
 #[derive(Debug,Clone,PartialEq)]
@@ -33,8 +36,8 @@ pub enum Const { I32(i32), F32(f32), F(Fun), Params(Vec<String>) }
 
 #[derive(Debug,Clone,PartialEq)]
 pub struct Fun {
-  params: Vec<String>
-, body: Box<Expr>
+  pub params: Vec<String>
+, pub body: Box<Expr>
 }
 
 fn is_digit(c: char) -> bool {
