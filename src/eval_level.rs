@@ -9,7 +9,8 @@ pub struct NFun {
 #[derive(Debug,Clone)]
 pub enum NConst { I32(i32), F32(f32), F(NFun), Params(Vec<String>) }
 #[derive(Debug,Clone)]
-pub enum NValue { Var(String), C(NConst), Lst(Vec<usize>), App(usize), E(String), Unfilled }
+pub enum NValue { Var(String), C(NConst), Lst(Vec<usize>), App(usize), E(String)
+                , Builtin(usize), Unfilled }
 
 #[derive(Debug,Clone)]
 pub struct ENode {
@@ -25,8 +26,22 @@ pub struct EArena {
 , pub nodes: Vec<ENode>
 }
 
+pub const builtins: [fn(usize,&Vec<usize>,&mut EArena); 1] = [
+  /*+*/ |out,args,ar: &mut EArena| { println!("{:?},{:?}{:?}",out,args,ar); match (&ar.nodes[args[0]].val,&ar.nodes[args[1]].val) {
+          (NValue::C(NConst::I32(a)),NValue::C(NConst::I32(b))) => {
+            ar.nodes[out] = new_enodev(NValue::C(NConst::I32(a+b))); },
+          (NValue::C(NConst::F32(a)),NValue::C(NConst::F32(b))) => {
+            ar.nodes[out] = new_enodev(NValue::C(NConst::F32(a+b))); },
+          _ => { ar.nodes[out] = new_enodev(NValue::E("ERROR: type mismatch.".to_string())); } } }
+];
+
 pub fn new_earena() -> EArena {
   return EArena { emptys: vec![], vars: vec![].into_iter().collect(), nodes: vec![] };
+}
+
+pub fn new_earenan(n: ENode) -> EArena {
+  return EArena { emptys: vec![], vars: vec![].into_iter().collect()
+                , nodes: vec![n] };
 }
 
 pub fn new_enodev(val: NValue) -> ENode {
@@ -84,9 +99,12 @@ pub fn expr_to_arena(e: &Expr, ar: &mut EArena) -> usize {
         else { return pnode(ar,new_enodev(NValue::E(format!("ERROR: non-dyadic '@' not implemented.")))); } } else { return rfc_2497(f,args,ar); } }
       else { return rfc_2497(f,args,ar); } },
     Expr::Lst(lst) => {
-      let pos = ar.nodes.len();
-      let g = (*lst).iter().map(|ex| expr_to_arena(ex,ar)).collect();
-      return pnode(ar,new_enodev(NValue::Lst(g))); },
+      if (*lst).len() == 1 {
+        return expr_to_arena(&(*lst)[0],ar); }
+      else {
+        let pos = ar.nodes.len();
+        let g = (*lst).iter().map(|ex| expr_to_arena(ex,ar)).collect();
+        return pnode(ar,new_enodev(NValue::Lst(g))); } },
     Expr::E(s) => {
       return pnode(ar,new_enodev(NValue::E(s.clone()))); },
     q => {
@@ -172,7 +190,8 @@ pub fn aeval(ins: usize, ar: &mut EArena, bvs: &mut HashMap<String,Vec<(EArena,u
     NValue::App(fe) => { // potentially subtractive
       let fz = aeval(fe,ar,bvs);
       let (ENode { rc: _, val: f, args: a }) = ar.nodes[fe].clone();
-      let na: Vec<usize> = a.iter().map(|x| aeval(*x,ar,bvs)).collect();
+      let na: Vec<usize> = args.iter().map(|x| aeval(*x,ar,bvs)).collect(); // note 'args' here and
+        // not 'a' !
       match ar.nodes[fz].val.clone() {
         NValue::C(NConst::F(NFun { params, body })) => {
           if na.len() == params.len() {
@@ -180,13 +199,19 @@ pub fn aeval(ins: usize, ar: &mut EArena, bvs: &mut HashMap<String,Vec<(EArena,u
             let b = asubst(body,ar,bvs);
             for p in params.iter() { rem_v(p,bvs); }
             for q in na { adelete(q,ar); }
+            adelete(fe,ar);
             return /*b*/ ins; }
           else { ar.nodes[ins] = new_enodev(
             NValue::E(format!("ERROR: function has arity {:?} but only given are {:?} parameters.",params.len(),na.len())));
-            return ins; } },
+            adelete(fe,ar); return ins; } },
+        NValue::Builtin(i) => {
+          builtins[i](ins,&na,ar);
+          for a in na { adelete(a,ar); }
+          adelete(fe,ar); return ins; },
         q => { ar.nodes[ins] = new_enodev(NValue::E(format!("ERROR: '{:?}' is not a function.",fz)));
                return ins; } } },
     NValue::E(s) => { return ins; },
+    NValue::Builtin(_) => { return ins; },
     NValue::Unfilled => { return ins; } }
 }
 
