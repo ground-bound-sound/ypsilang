@@ -223,7 +223,7 @@ fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a st
            && ops.last().unwrap().0 != Expr::LP(1) {
           /*stk.push_back(Value::Opr(ops.pop().unwrap().0));*/
           stk.push(ops.pop().unwrap()); }
-        stk.reverse();
+        //stk.reverse(); // note the change here!
         match ops.pop().unwrap().0 {
           Expr::LP(0) => {
             outq.append(&mut stk.into_iter().map(|x| Value::Opr(x.0)).collect());
@@ -267,7 +267,7 @@ fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a st
             /*return Ok((input,apply_fs(&mut outq,&ops)[0].clone()));*/ } } },*/
       Ok((input,q)) => {
         if form == 0 { outq.push_back(Value::Val(q)); inp = input; form = 1; }
-        else { println!("val: {:?}",q); match &q {
+        else { match &q {
           Expr::Var(s) => {
             match prec.get(s) {
               Some(i) => {
@@ -285,7 +285,6 @@ fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a st
 }
 
 pub fn exprp<'a>(input: &'a str,prec: &HashMap<String,usize>) -> IResult<&'a str,Expr> {
-  println!("exprp");
   let (input,_) = multispace0(input)?;
   return alt((|x| apporlstp(x,prec),map(|x| constp(x,prec),|x| Expr::C(x))
              ,map(varp,|x| Expr::Var(x))))(input);

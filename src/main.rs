@@ -140,7 +140,9 @@ fn main() {
     let mut input = String::new();
     let mut bvs: HashMap<String,Vec<(EArena,usize)>> =
       vec![("+".to_string()
-           ,vec![(new_earenan(new_enodev(NValue::Builtin(0))),0)])].into_iter().collect();
+           ,vec![(new_earenan(new_enodev(NValue::Builtin(0))),0)]),
+           /*("META:fun".to_string()
+           ,vec![(new_earenan(new_enodev(NValue::Builtin(1))),0)])*/].into_iter().collect();
     print!("> "); io::stdout().flush();
     match io::stdin().read_line(&mut input) {
       Ok(s) => {
@@ -149,8 +151,8 @@ fn main() {
         let mut ar = new_earena();
         let ins = expr_to_arena(&st,&mut ar);
         println!("{:?} {:?}",ar,ins);
-        aeval(ins,&mut ar,&mut bvs);
-        println!("{:?} {:?}",ar,ins); },
+        let g = aeval(ins,&mut ar,&mut bvs);
+        println!("{:?} {:?}",ar,g); },
       Err(e) => { println!("ERROR: {:?}",e); }
     }
   }

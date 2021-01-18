@@ -33,6 +33,11 @@ pub const builtins: [fn(usize,&Vec<usize>,&mut EArena); 1] = [
           (NValue::C(NConst::F32(a)),NValue::C(NConst::F32(b))) => {
             ar.nodes[out] = new_enodev(NValue::C(NConst::F32(a+b))); },
           _ => { ar.nodes[out] = new_enodev(NValue::E("ERROR: type mismatch.".to_string())); } } }
+/*, /*META:fun*/
+    |out,args,ar: &mut EArena| {
+      match &ar.nodes[args[0]].val {
+        NValue::C(NConst::Params(ps)) => {
+          ar.nodes[out] = new_enode(NValue::C(NConst::F(NFun { */
 ];
 
 pub fn new_earena() -> EArena {
@@ -51,7 +56,11 @@ pub fn new_enodev(val: NValue) -> ENode {
 pub fn pnode(ar: &mut EArena, n: ENode) -> usize {
   match ar.emptys.pop() {
     Some(i) => { ar.nodes[i] = n; return i; },
-    None => { ar.nodes.push(n); return ar.nodes.len()-1; } }
+    None => {
+      if let (ENode { rc: _, val: NValue::Unfilled, args: _ }) = &n {
+        ar.emptys.push(ar.nodes.len()); /* note the difference in length. */ }
+      ar.nodes.push(n);
+      return ar.nodes.len()-1; } }
 }
 
 pub fn unroll_comma(e: &Expr, outv: &mut Vec<Expr>) {
@@ -61,7 +70,7 @@ pub fn unroll_comma(e: &Expr, outv: &mut Vec<Expr>) {
         assert!(args.len() == 2,"',' not dyadic?");
         outv.push((*args)[0].clone());
         unroll_comma(&(*args)[1],outv); } } },
-    _ => { } }
+    _ => { outv.push(e.clone()); } }
 }
 
 pub fn rfc_2497(f: &Box<Expr>, args: &Box<Vec<Expr>>, ar: &mut EArena) -> usize {
@@ -96,7 +105,21 @@ pub fn expr_to_arena(e: &Expr, ar: &mut EArena) -> usize {
           let g = argsv.iter().map(|ex| expr_to_arena(ex,ar)).collect();
           return pnode(ar,ENode { rc: 1, val: NValue::App(fe),
                                   args: g }); }
-        else { return pnode(ar,new_enodev(NValue::E(format!("ERROR: non-dyadic '@' not implemented.")))); } } else { return rfc_2497(f,args,ar); } }
+        else { return pnode(ar,new_enodev(NValue::E(format!("ERROR: non-dyadic '@' not implemented.")))); } }
+       else if *s == "META:fun".to_string() {
+         if (*args).len() == 2 { if let (Expr::Lst(lst)) = &(*args)[0] {
+           println!("wieroehi: {:?}",(*args));
+           match &(*lst)[0] {
+             Expr::C(Const::Params(ps)) => {
+               let g = expr_to_arena(&(*args)[1],ar);
+               return pnode(ar,ENode { rc: 1,
+                        val: NValue::C(NConst::F(NFun { params: ps.clone(), body: g })),
+                        args: vec![] }); },
+             _ => { return pnode(ar,new_enodev(NValue::E(format!("ERROR: failed lambda expression.")))); } } }
+           else { return pnode(ar,new_enodev(NValue::E(format!("ERROR: failed lambda expression.")))); } }
+         else { return pnode(ar,new_enodev(NValue::E(format!("ERROR: is this even possible?")))); } }
+           
+       else { return rfc_2497(f,args,ar); } }
       else { return rfc_2497(f,args,ar); } },
     Expr::Lst(lst) => {
       if (*lst).len() == 1 {
@@ -112,6 +135,7 @@ pub fn expr_to_arena(e: &Expr, ar: &mut EArena) -> usize {
 }
 
 pub fn append_expr(ar: &mut EArena, br: &EArena, ins: usize) -> usize {
+  println!("{:?} {:?} {:?}",ar,br,ins);
   let (ENode { rc: _, val: val, args: args }) = &br.nodes[ins];
   let pos = ar.nodes.len();
   let g = args.iter().map(|en| append_expr(ar,br,*en)).collect();
@@ -121,11 +145,11 @@ pub fn append_expr(ar: &mut EArena, br: &EArena, ins: usize) -> usize {
 
 pub fn add_v(n: &String, ar: &EArena, v: usize, bvs: &mut HashMap<String,Vec<(EArena,usize)>>) {
   let mut z: EArena = new_earena();
-  //let ef = append_expr(ar,br,v);
+  let ef = append_expr(&mut z,ar,v);
   match bvs.get_mut(n) {
     Some(q) => {
-      (*q).push((z,v)); }
-    None => { bvs.insert(n.clone(),vec![(z,v)]); } }
+      (*q).push((z,ef)); }
+    None => { bvs.insert(n.clone(),vec![(z,ef)]); } }
 }
 
 pub fn rem_v(n: &String, bvs: &mut HashMap<String,Vec<(EArena,usize)>>) {
@@ -152,6 +176,7 @@ pub fn asubst(ins: usize, ar: &mut EArena, bvs: &mut HashMap<String,Vec<(EArena,
         Some(i) => { ar.nodes[*i].rc += 1; ar.nodes[ins] = ar.nodes[*i].clone(); },
         None => {
           if let Some((tr,i)) = bvs.get(&s).map(|x| &x[0]) {
+            println!("var: {:?}",bvs);
             let nq = append_expr(ar,&tr,*i);
             ar.nodes[ins] = ar.nodes[nq].clone();
             ar.vars.insert(s.clone(),ins); } } } },
@@ -196,11 +221,13 @@ pub fn aeval(ins: usize, ar: &mut EArena, bvs: &mut HashMap<String,Vec<(EArena,u
         NValue::C(NConst::F(NFun { params, body })) => {
           if na.len() == params.len() {
             for (p,n) in params.iter().zip(na.iter()) { add_v(p,ar,*n,bvs); }
+            println!("before sub: {:?} {:?}\n",ar,ins);
             let b = asubst(body,ar,bvs);
+            println!("after sub: {:?} {:?}\n",ar,ins);
             for p in params.iter() { rem_v(p,bvs); }
             for q in na { adelete(q,ar); }
             adelete(fe,ar);
-            return /*b*/ ins; }
+            return /*b*/ aeval(body,ar,bvs); }
           else { ar.nodes[ins] = new_enodev(
             NValue::E(format!("ERROR: function has arity {:?} but only given are {:?} parameters.",params.len(),na.len())));
             adelete(fe,ar); return ins; } },
