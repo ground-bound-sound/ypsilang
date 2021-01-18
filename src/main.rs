@@ -22,7 +22,7 @@ pub mod read_level;
 pub mod eval_level;
 use player::{Displacement};
 use plat::{Platform,Edge,EdgeFunc};
-use read_level::{levelp,exprp};
+use read_level::{levelp,exprp,stmtp,importp,modbeginp,typep,openp};
 use eval_level::{EArena,ENode,NValue,aeval,expr_to_arena,new_enodev,new_earena,new_earenan};
 //pub mod entity;
 
@@ -146,13 +146,15 @@ fn main() {
     print!("> "); io::stdout().flush();
     match io::stdin().read_line(&mut input) {
       Ok(s) => {
-        let (_,st) = exprp(&input,&prec).unwrap();
-        println!("{:?}",st);
-        let mut ar = new_earena();
+        /*let (_,st) = stmtp(&input,&prec).unwrap();
+        println!("{:?}",st);*/
+        let s = typep(&input,&prec);
+        println!("{:?}",s);
+        /*let mut ar = new_earena();
         let ins = expr_to_arena(&st,&mut ar);
         println!("{:?} {:?}",ar,ins);
         let g = aeval(ins,&mut ar,&mut bvs);
-        println!("{:?} {:?}",ar,g); },
+        println!("{:?} {:?}",ar,g); */},
       Err(e) => { println!("ERROR: {:?}",e); }
     }
   }

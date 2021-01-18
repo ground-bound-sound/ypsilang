@@ -227,6 +227,7 @@ pub fn aeval(ins: usize, ar: &mut EArena, bvs: &mut HashMap<String,Vec<(EArena,u
             for p in params.iter() { rem_v(p,bvs); }
             for q in na { adelete(q,ar); }
             adelete(fe,ar);
+            adelete(fz,ar);
             return /*b*/ aeval(body,ar,bvs); }
           else { ar.nodes[ins] = new_enodev(
             NValue::E(format!("ERROR: function has arity {:?} but only given are {:?} parameters.",params.len(),na.len())));

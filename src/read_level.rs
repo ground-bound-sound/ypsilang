@@ -2,9 +2,9 @@ extern crate nom;
 use nom::{
   IResult, Err, combinator::{opt,not,peek,flat_map,map,map_parser}, tuple
 , bytes::complete::{tag,take_while}
-, character::complete::{digit0,digit1,multispace0,multispace1,one_of,none_of}
+, character::complete::{digit0,digit1,multispace0,multispace1,one_of,none_of,alphanumeric1}
 , multi::{many0,many1,separated_list0,separated_list1}, sequence::delimited, branch::alt
-, error::{ParseError,Error}
+, error::{ParseError,Error,ErrorKind,make_error}
 };
 use std::str;
 use std::io;
@@ -21,7 +21,8 @@ pub struct ExprList {
 
 #[derive(Debug,Clone)]
 pub enum Stmt {
-  VarDef(String,Expr), SetPlat(Expr)
+  VarDef(String,Expr), SetPlat(Expr), Import(Vec<String>), ModuleBegin(String,Vec<Expr>,Box<Vec<Stmt>>)
+, Open(String), Type(Expr,Vec<Expr>), Ex(Expr), E(String)
 }
 
 #[derive(Debug,Clone,PartialEq)]
@@ -198,11 +199,18 @@ fn add_f(z: &Expr, outq: &mut VecDeque<Value>) {
 fn stmtendp(input: &str) -> IResult<&str,String> {
   let (input,_) = multispace0(input)?;
   println!("here: {:?}",input);
-  return map(one_of(";"),|x: char| vec![x].into_iter().collect())(input);
+  return map(one_of(";}"),|x: char| vec![x].into_iter().collect())(input);
 }
 
 fn toggle(a: i32) -> i32 { return if a == 0 { 1 } else { 0 }; }
 
+macro_rules! outqr {
+  ($inp:expr,$outq:expr,$ops:expr) => { {
+    let a = apply_fs(&mut $outq,&$ops);
+    return match a.get(0) {
+      Some(c) => Ok(($inp,c.clone())),
+      None => map(tag("iqojeioqhworwh"),|x| Expr::E("j".to_string()))($inp) }; } }
+}
 fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Expr> {
   let mut outq : VecDeque<Value> = VecDeque::new();
   let mut ops : Vec<(Expr,usize)> = vec![];
@@ -241,30 +249,6 @@ fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a st
 
             inp = input; form = 0; },
           _ => { panic!("this should never happen!"); } } },
-      /*Ok((input,l)) => {
-        outq.push_back(Value::Val(l));
-        let q = oprp(input,prec);
-        println!("{:?} {:?}, {:?}",input,q,ops);
-        match /*oprp(input,prec)*/ q {
-          Ok((input,op)) => {
-            match &op {
-              Expr::Var(s) => {
-                match prec.get(s) {
-                  Some(i) => {
-                    if *i < ops.last().map(|x| x.1).unwrap_or(0) {
-                      add_f(&Expr::Var(s.clone()),&mut outq);
-                      ops.pop();
-                      inp = input; }
-                    else { ops.push((Expr::Var(s.clone()),*i));
-                      inp = input; } },
-                  None => {
-                    ops.push((op.clone(),usize::MAX)); inp = input; } } }
-              q => { add_f(&q,&mut outq); inp = input; } } }
-          _ => {
-            // flush stack here!
-            println!("b: {:?}",input);
-            inp = input;
-            /*return Ok((input,apply_fs(&mut outq,&ops)[0].clone()));*/ } } },*/
       Ok((input,q)) => {
         if form == 0 { outq.push_back(Value::Val(q)); inp = input; form = 1; }
         else { match &q {
@@ -280,8 +264,13 @@ fn apporlstp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a st
               None => {
                 ops.push((q.clone(),usize::MAX)); inp = input; form = 0; } } },
           z => { panic!("parse error (2)!"); } } } },
-      e => { return e; } } }
-  return Ok((inp,apply_fs(&mut outq,&ops)[0].clone())); // maybe 'input' is weird?
+      Err(e) => { return Err(e); }
+      e => { return outqr!(inp,outq,ops); } } }
+  return outqr!(inp,outq,ops); // maybe 'input' is weird?
+}
+
+macro_rules! stag {
+  ($a:expr) => { delimited(multispace0,tag($a),multispace0) }
 }
 
 pub fn exprp<'a>(input: &'a str,prec: &HashMap<String,usize>) -> IResult<&'a str,Expr> {
@@ -290,7 +279,80 @@ pub fn exprp<'a>(input: &'a str,prec: &HashMap<String,usize>) -> IResult<&'a str
              ,map(varp,|x| Expr::Var(x))))(input);
 }
 
-pub fn levelp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,ExprList> {
-  return map(separated_list0(tag(";"),delimited(multispace0,|x| exprp(x,prec),multispace0))
-            ,|x| ExprList { stmts: x })(input);
+/*pub fn levelp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Vec<Expr>> {
+  return separated_list0(tag(";"),delimited(multispace0,|x| exprp(x,prec),multispace0))(input);
+}*/
+
+pub fn levelp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Expr> {
+  let (input,e) = exprp(input,prec)?;
+  let (input,_) = stag!(";")(input)?;
+  return Ok((input,e));
+}
+
+pub fn levelsp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Vec<Expr>> {
+  let (input,es) = many1(|x| levelp(x,prec))(input)?;
+  return Ok((input,es));
+}
+
+/*pub enum Stmt {
+  VarDef(String,Expr), SetPlat(Expr), Import(String), ModuleBegin(String,Expr,Box<Vec<Stmt>>)
+, Open(String), Type(Expr,Vec<Expr>), E(String)
+}*/
+
+pub fn vardefp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("var"),multispace1)(input)?;
+  let (input,v) = varp(input)?;
+  let (input,_) = delimited(multispace0,tag("=:"),multispace0)(input)?;
+  let (input,e) = exprp(input,prec)?;
+  return Ok((input,Stmt::VarDef(v,e)));
+}
+
+pub fn setplatp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("platform"),multispace1)(input)?;
+  let (input,e) = exprp(input,prec)?;
+  return Ok((input,Stmt::SetPlat(e)));
+}
+
+pub fn importp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("import"),multispace1)(input)?;
+  let (input,s) = separated_list1(tag("/"),alphanumeric1)(input)?;
+  return Ok((input,Stmt::Import(s.into_iter().map(|x| x.to_string()).collect())));
+}
+
+pub fn modbeginp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("module"),multispace1)(input)?;
+  let (input,name) = alphanumeric1(input)?;
+  let (input,prefix) = many0(delimited(stag!("!{"),|x| exprp(x,prec)
+                                      ,stag!("}")))(input)?;
+  let (input,es) = delimited(stag!("{"),|x| stmtsp(x,prec)
+                            ,stag!("}"))(input)?;
+  return Ok((input,Stmt::ModuleBegin(name.to_string(),prefix,Box::new(es))));
+}
+
+pub fn openp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("open"),multispace1)(input)?;
+  let (input,name) = alphanumeric1(input)?;
+  return Ok((input,Stmt::Open(name.to_string())));
+}
+
+pub fn typep<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,_) = delimited(multispace0,tag("type"),multispace0)(input)?;
+  let (input,name) = delimited(stag!("{"),|x| exprp(x,prec),stag!("}"))(input)?;
+  let (input,lst) = delimited(stag!("{")
+                             ,|x| levelsp(x,prec)
+                             ,stag!("}"))(input)?;
+  return Ok((input,Stmt::Type(name,lst)));
+}
+
+pub fn stmtp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
+  let (input,q) = alt((|x| vardefp(x,prec),|x| setplatp(x,prec),|x| importp(x,prec)
+                      ,|x| modbeginp(x,prec),|x| openp(x,prec)
+                      ,|x| typep(x,prec),map(|x| exprp(x,prec),|x| Stmt::Ex(x))))(input)?;
+  let (input,_) = delimited(multispace0,tag(";"),multispace0)(input)?;
+  return Ok((input,q));
+}
+
+pub fn stmtsp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Vec<Stmt>> {
+  let (input,qs) = many1(|x| stmtp(x,prec))(input)?;
+  return Ok((input,qs));
 }
