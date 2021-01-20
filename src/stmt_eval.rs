@@ -60,7 +60,8 @@ pub fn seval(s: &Stmt, ps: &mut PState, m: &String, prec: &HashMap<String,usize>
             if let Some(s) = seval(f,&mut ps0,&m2,prec) { qs.push(s.clone()); } }
           for q in &qs {
             let qg = [m2.clone(),q.clone()].concat();
-            ps.bvs.insert(qg.clone(),ps0.bvs.get(&qg).unwrap().clone()); }
+            let el = ps0.bvs.get(&qg).unwrap().last().unwrap().clone();
+            add_v(&qg,&el.0,el.1,&mut ps.bvs); }
           ps.mods.insert(name.clone(),Module { name: name.clone(), args: vec![].into_iter().collect()
                                              , fields: qs });
           return None; } } },
