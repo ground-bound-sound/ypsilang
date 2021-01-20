@@ -20,9 +20,13 @@ pub struct ExprList {
 }
 
 #[derive(Debug,Clone)]
+pub enum SErr { TypeMismatch((EArena,usize),(EArena,usize)), FileNotFound(String)
+              , ParseError, ModuleNotFound(String) }
+
+#[derive(Debug,Clone)]
 pub enum Stmt {
-  VarDef(String,Expr), SetPlat(Expr), Import(Vec<String>), ModuleBegin(String,Vec<Expr>,Box<Vec<Stmt>>)
-, Open(String), Type(Expr,Vec<Expr>), Ex(Expr), E(String)
+  VarDef(String,Expr), SetPlat(Expr), Import(Vec<String>,Vec<Expr>), ModuleBegin(String,Vec<Expr>,Box<Vec<Stmt>>)
+, Open(String), Type(Expr,Vec<Expr>), Ex(Expr), E(SErr)
 }
 
 #[derive(Debug,Clone,PartialEq)]
@@ -316,7 +320,9 @@ pub fn setplatp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a
 pub fn importp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {
   let (input,_) = delimited(multispace0,tag("import"),multispace1)(input)?;
   let (input,s) = separated_list1(tag("/"),alphanumeric1)(input)?;
-  return Ok((input,Stmt::Import(s.into_iter().map(|x| x.to_string()).collect())));
+  let (input,prefix) = many0(delimited(stag!("!{"),|x| exprp(x,prec)
+                                      ,stag!("}")))(input)?;
+  return Ok((input,Stmt::Import(s.into_iter().map(|x| x.to_string()).collect(),prefix)));
 }
 
 pub fn modbeginp<'a>(input: &'a str, prec: &HashMap<String,usize>) -> IResult<&'a str,Stmt> {

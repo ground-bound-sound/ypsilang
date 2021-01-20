@@ -20,10 +20,12 @@ pub mod player;
 pub mod plat;
 pub mod read_level;
 pub mod eval_level;
+pub mod stmt_eval;
 use player::{Displacement};
 use plat::{Platform,Edge,EdgeFunc};
 use read_level::{levelp,exprp,stmtp,importp,modbeginp,typep,openp};
 use eval_level::{EArena,ENode,NValue,aeval,expr_to_arena,new_enodev,new_earena,new_earenan};
+use stmt_eval::*;
 //pub mod entity;
 
 fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) -> String {
@@ -134,22 +136,30 @@ fn create_jbox(texture: &Texture, canvas: &mut Canvas<Window>, r: Option<Rect>) 
 }*/
 
 fn main() {
-  loop {
-    let prec = vec![(":".to_string(),0),("META:fun".to_string(),100)
-                   ,("@".to_string(),200),(",".to_string(),300)].into_iter().collect();
-    let mut input = String::new();
-    let mut bvs: HashMap<String,Vec<(EArena,usize)>> =
-      vec![("+".to_string()
-           ,vec![(new_earenan(new_enodev(NValue::Builtin(0))),0)]),
+  let prec = vec![(":".to_string(),0),("META:fun".to_string(),100)
+               ,("@".to_string(),200),(",".to_string(),300)].into_iter().collect();
+  let mut input = String::new();
+  let mut bvs: HashMap<String,Vec<(EArena,usize)>> =
+    vec![("+".to_string()
+          ,vec![(new_earenan(new_enodev(NValue::Builtin(0))),0)]),
            /*("META:fun".to_string()
            ,vec![(new_earenan(new_enodev(NValue::Builtin(1))),0)])*/].into_iter().collect();
+  let mut ps = PState { bvs: bvs, mods: vec![].into_iter().collect()
+                      , errs: vec![] };
+  loop {
     print!("> "); io::stdout().flush();
     match io::stdin().read_line(&mut input) {
       Ok(s) => {
         /*let (_,st) = stmtp(&input,&prec).unwrap();
         println!("{:?}",st);*/
-        let s = typep(&input,&prec);
+        let s = stmtp(&input,&prec);
         println!("{:?}",s);
+        match s {
+          Ok((input,st)) => {
+            seval(&st,&mut ps,&"".to_string(),&prec); },
+          Err(e) => { println!("PARSE ERROR: {:?}",e); } }
+        println!("ps: {:?}",ps);
+        input = "".to_string();
         /*let mut ar = new_earena();
         let ins = expr_to_arena(&st,&mut ar);
         println!("{:?} {:?}",ar,ins);
